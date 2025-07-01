@@ -1,0 +1,116 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.app-bg {
+  min-height: 100vh;
+  background: #f2ebe3;
+  font-family: 'Inter', 'Roboto', Arial, sans-serif;
+}
+.centered-chat {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  min-height: 80vh;
+  padding-top: 1.2rem;
+  margin-right: 5vw;
+}
+
+.chat-window {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px rgba(26,127,55,0.08);
+  max-width: 420px;
+  width: 100%;
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 2px solid #2d2232;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem 1.5rem 1rem 1.5rem;
+}
+
+.input-area {
+  display: flex;
+  padding: 1rem 1.5rem 1.5rem 1.5rem;
+  border-top: 1px solid #e0e0e0;
+  background: #fff;
+}
+
+.input-area input {
+  flex: 1;
+  border: 1px solid #cfd8dc;
+  border-radius: 20px;
+  padding: 0.75rem 1.25rem;
+  font-size: 1rem;
+  margin-right: 0.75rem;
+  outline: none;
+}
+
+.input-area button {
+  background: #4ca96b;
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.input-area button:hover {
+  background: #388e4a;
+}
+
+.fertgpt-title {
+  font-family: 'Inter', 'Roboto', Arial, sans-serif;
+  font-weight: 900;
+  font-size: 2.7rem;
+  color: #b7cd6b;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-align: right;
+  margin-top: 2.2rem;
+  margin-bottom: 1.2rem;
+  margin-right: 5vw;
+}

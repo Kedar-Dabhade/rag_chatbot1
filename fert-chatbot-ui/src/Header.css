@@ -1,0 +1,117 @@
+.resupply-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f2ebe3;
+  padding: 0.75rem 2vw 0.75rem 2vw;
+  border-bottom: 1px solid #d2c6bb;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  margin-left: 5vw;
+  flex: 0 0 auto;
+}
+.resupply-logo {
+  height: 40px;
+  margin-right: 1.2vw;
+  display: block;
+}
+.resupply-title {
+  font-family: 'Inter', 'Roboto', Arial, sans-serif;
+  font-weight: 900;
+  font-size: 1.7rem;
+  color: #2d2232;
+  letter-spacing: 1px;
+}
+.resupply-title .orange {
+  color: #f7931e;
+}
+.header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+.search-bar {
+  width: 85%;
+  max-width: 700px;
+  min-width: 220px;
+  margin-left: 3vw;
+  padding: 0.7rem 1.2rem;
+  border-radius: 30px;
+  border: 1.5px solid #e0d7cb;
+  background: #f7f1ea;
+  font-size: 1.1rem;
+  color: #2d2232;
+  outline: none;
+  box-shadow: 0 1px 3px rgba(45,34,50,0.04);
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.account-btn {
+  background: #f7f1ea;
+  color: #2d2232;
+  border: 2px solid #2d2232;
+  border-radius: 30px;
+  padding: 0.5rem 1.2rem;
+  font-weight: 600;
+  font-size: 1rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.account-btn:hover {
+  background: #ece6dd;
+}
+.cart-btn {
+  background: #f7931e;
+  color: #fff;
+  border: none;
+  border-radius: 30px;
+  padding: 0.5rem 1.5rem;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.cart-btn:hover {
+  background: #e67c00;
+}
+.resupply-nav {
+  display: flex;
+  align-items: center;
+  background: #f2ebe3;
+  border-bottom: 1px solid #d2c6bb;
+  padding: 0.2rem 2vw 0.2rem 7vw;
+  gap: 2.5rem;
+}
+.resupply-nav a {
+  color: #2a1d28;
+  font-weight: 700;
+  font-size: 1.1rem;
+  text-decoration: none;
+  padding: 0.5rem 0;
+  transition: color 0.2s;
+}
+.resupply-nav a:hover {
+  color: #f7931e;
+}
+@media (max-width: 700px) {
+  .resupply-header, .resupply-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 0.5rem 2vw;
+  }
+  .search-bar {
+    width: 100%;
+    min-width: 0;
+  }
+  .resupply-nav {
+    gap: 1.2rem;
+    font-size: 1rem;
+  }
+} 
