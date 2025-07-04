@@ -11,11 +11,9 @@ from flask_cors import CORS
 from langchain.callbacks.base import BaseCallbackHandler
 import queue
 import threading
-import re
 import tiktoken
 import uuid
-from typing import List, Dict, Any
-import logging
+from langchain.globals import set_debug
 
 # Load environment variables
 load_dotenv()
@@ -25,10 +23,6 @@ opensearch_user = os.getenv("OPENSEARCH_USER", "admin")
 opensearch_password = os.getenv("OPENSEARCH_PASSWORD", "n864pyAkop5E5WB")
 opensearch_index = os.getenv("OPENSEARCH_INDEX", "opensearch_fert")
 opensearch_verify_certs = os.getenv("OPENSEARCH_VERIFY_CERTS", "false").lower() == "true"
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
-logger = logging.getLogger(__name__)
 
 # Set up embeddings and vector store
 embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
@@ -43,54 +37,13 @@ vectorstore = OpenSearchVectorSearch(
 )
 
 # Configurable parameters for retrieval
-SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.75"))  # Default 0.75
-MAX_CONTEXT_DOCS = int(os.getenv("MAX_CONTEXT_DOCS", "3"))  # Default 3
-K_CANDIDATES = int(os.getenv("K_CANDIDATES", "7"))  # Default 7
+MAX_CONTEXT_DOCS = 7  # Default 3
 
-# Set up retriever with k candidates
-retriever = vectorstore.as_retriever(search_kwargs={'k': K_CANDIDATES})
-
-# Helper function for optimized retrieval with score filtering (no compression)
-def retrieve_top_docs(query: str):
-    """
-    Retrieve k candidates, attach similarity scores, filter by threshold, and limit to top N docs (no compression).
-    Logs the retrieval process for debugging and transparency.
-    """
-    results_with_scores = vectorstore.similarity_search_with_score(query, k=K_CANDIDATES)
-    logger.info(f"[RETRIEVAL] Query: {query}")
-    logger.info(f"[RETRIEVAL] Initial {K_CANDIDATES} candidates (doc, score):")
-    for i, (doc, score) in enumerate(results_with_scores):
-        logger.info(f"  Candidate {i+1}: Score={score:.4f}, Metadata={doc.metadata}, Preview={doc.page_content[:120].replace('\n',' ')}...")
-    docs = []
-    for doc, score in results_with_scores:
-        doc.metadata = dict(doc.metadata)
-        doc.metadata["similarity_score"] = score
-        docs.append(doc)
-    filtered_docs = [doc for doc in docs if doc.metadata["similarity_score"] >= SIMILARITY_THRESHOLD]
-    logger.info(f"[RETRIEVAL] {len(filtered_docs)} docs passed similarity threshold ({SIMILARITY_THRESHOLD})")
-    for i, doc in enumerate(filtered_docs):
-        logger.info(f"  Passed {i+1}: Score={doc.metadata['similarity_score']:.4f}, Metadata={doc.metadata}, Preview={doc.page_content[:120].replace('\n',' ')}...")
-    filtered_docs.sort(key=lambda d: d.metadata["similarity_score"], reverse=True)
-    top_docs = filtered_docs[:MAX_CONTEXT_DOCS]
-    logger.info(f"[RETRIEVAL] Top {len(top_docs)} docs selected for LLM context:")
-    for i, doc in enumerate(top_docs):
-        logger.info(f"  Top {i+1}: Score={doc.metadata['similarity_score']:.4f}, Metadata={doc.metadata}, Preview={doc.page_content[:120].replace('\n',' ')}...")
-    # Log the full context that will be sent to the LLM
-    context_preview = '\n---\n'.join([doc.page_content[:200].replace('\n',' ') for doc in top_docs])
-    logger.info(f"[RETRIEVAL] Final context sent to LLM (first 200 chars per doc):\n{context_preview}")
-    return top_docs
+# Set up retriever with k using MMR (returns top k after MMR), fetch_k controls candidate pool size
+retriever = vectorstore.as_retriever(search_type="mmr", search_kwargs={'k': MAX_CONTEXT_DOCS, 'fetch_k': 40})
 
 # Set up LLM
-llm = ChatOpenAI(openai_api_key=openai_api_key, model="gpt-4")
-
-# Set up memory for chat history, specify output_key
-memory = ConversationSummaryMemory(
-    llm=llm,
-    memory_key="chat_history",
-    return_messages=True,
-    output_key="answer",
-    max_token_limit=1250  
-)
+llm = ChatOpenAI(openai_api_key=openai_api_key, model="gpt-4o-mini")
 
 # Custom prompt for the agent
 custom_prompt = PromptTemplate(
@@ -98,7 +51,7 @@ custom_prompt = PromptTemplate(
     template="""
 You are an expert agriculture consultant. Your task is to recommend appropriate fertiliser products and answer user queries.
 
-IMPORTANT: Do not say "Based on the provided information". Start your answer directly with the advice.
+IMPORTANT: Do not say \"Based on the provided information\". Start your answer directly with the advice.
 Do NOT ask to consult with a local agronomist.
 If the answer has more than 3-4 points summarise each of them or try fitting the answer in 2-3 points
 
@@ -107,7 +60,7 @@ If the answer has more than 3-4 points summarise each of them or try fitting the
 - Even if the user's input is a general input, make sure to answer it in a way that is relevant to the fertiliser context in a respectful way.Do not pinpoint to user that it is a general input.
 - Make sure to answer the question in the same language as the user's input.
 - Use ONLY the following context and the chat history to answer the user's question.
-- Never refer to the context as \"the context\" or \"the information\" or \"the data\" while answering the question.It will be sure that user you have enough context to answer users query upto a certain extent if not whole.Answer confidently but informatively.
+- Never refer to the context as \"the context\" or \"the information\" or \"the data\"
 - Do not recommend products that are not in the context.
 - By default, provide concise, clear answers using bullet points or numbered lists for readability. If the retrieved context is big, provide a summary of the context without missing any important information and then answer the question.
 - Only provide detailed explanations if the user specifically asks for more detail (e.g., 'explain in detail', 'more info', etc).
@@ -125,15 +78,6 @@ Chat history:
 Question: {question}
 Answer:
 """
-)
-
-# Set up Conversational Retrieval Chain (RAG with memory)
-qa_chain = ConversationalRetrievalChain.from_llm(
-    llm=llm,
-    retriever=retriever,
-    memory=memory,
-    combine_docs_chain_kwargs={"prompt": custom_prompt},
-    return_source_documents=True
 )
 
 class QueueStreamHandler(BaseCallbackHandler):
@@ -206,105 +150,6 @@ def session_history():
     ]
     return jsonify(messages)
 
-@app.route('/chat', methods=['POST'])
-def chat():
-    data = request.get_json()
-    query = data.get("query", "")
-    # Use optimized retrieval
-    context_docs = retrieve_top_docs(query)
-    # Build context from best docs
-    context = "\n\n".join([doc.page_content for doc in context_docs])
-    # Log the context and sources being sent to the LLM
-    logger.info(f"[CHAT] Context sent to LLM (first 300 chars): {context[:300].replace('\n',' ')}")
-    logger.info(f"[CHAT] Source metadata: {[doc.metadata for doc in context_docs]}")
-    # Print the current chat history and context for debugging
-    print("\n--- DEBUG: Current Chat History ---")
-    print(memory.buffer)
-    print("--- END DEBUG ---\n")
-    chat_history = memory.buffer
-    question = query
-    prompt_text = custom_prompt.format(context=context, chat_history=chat_history, question=question)
-    # Count tokens using tiktoken (make sure tiktoken is installed)
-    enc = tiktoken.encoding_for_model("gpt-4")
-    num_tokens = len(enc.encode(prompt_text))
-    logger.info(f"[TOKENS] Total tokens sent to LLM: {num_tokens}")
-    # Call LLM with filtered context
-    result = llm.invoke(prompt_text)
-    return jsonify({
-        "answer": result,
-        # Optionally include sources:
-        # "sources": [doc.metadata for doc in context_docs]
-    })
-
-@app.route('/chat-stream', methods=['POST'])
-def chat_stream():
-    data = request.get_json()
-    user_message = data.get('message', '')
-    if not user_message:
-        return jsonify({"error": "No message provided."}), 400
-
-    handler = QueueStreamHandler()
-    streaming_llm = ChatOpenAI(openai_api_key=openai_api_key, model="gpt-4", streaming=True, callbacks=[handler])
-    qa_chain_stream = ConversationalRetrievalChain.from_llm(
-        llm=streaming_llm,
-        retriever=retriever,
-        memory=memory,
-        combine_docs_chain_kwargs={"prompt": custom_prompt},
-        return_source_documents=True
-    )
-
-    def strip_leading_question_sentence(answer):
-        # Find the first sentence (up to . ! or ?)
-        match = re.match(r'^(.*?[.?!])\s*(.*)', answer.lstrip(), re.DOTALL)
-        if match:
-            first_sentence, rest = match.groups()
-            # If the first sentence ends with a question mark, or starts with a common question phrase, remove it
-            if first_sentence.strip().endswith('?') or re.match(r'^(is it possible|can you|could you|would you|is it|are there|does|do|what|how|why|when|where|who|which)', first_sentence.strip(), re.IGNORECASE):
-                return rest.lstrip()
-        return answer.lstrip()
-
-    def generate():
-        # --- DEBUG LOGGING ---
-        print("\n--- DEBUG: Current Chat History (stream) ---")
-        print(memory.buffer)
-        print("--- END DEBUG ---\n")
-        # Build the full prompt as it will be sent to the LLM
-        context_docs = retrieve_top_docs(user_message)
-        context = "\n\n".join([doc.page_content for doc in context_docs])
-        logger.info(f"[CHAT-STREAM] Context sent to LLM (first 300 chars): {context[:300].replace('\n',' ')}")
-        logger.info(f"[CHAT-STREAM] Source metadata: {[doc.metadata for doc in context_docs]}")
-        chat_history = memory.buffer
-        question = user_message
-        prompt_text = custom_prompt.format(context=context, chat_history=chat_history, question=question)
-        enc = tiktoken.encoding_for_model("gpt-4")
-        num_tokens = len(enc.encode(prompt_text))
-        logger.info(f"[TOKENS] Total tokens sent to LLM (stream): {num_tokens}")
-        # --- END DEBUG LOGGING ---
-        def run_chain():
-            qa_chain_stream.invoke({"question": user_message})
-            handler.q.put(None)  # Signal end of stream
-        thread = threading.Thread(target=run_chain)
-        thread.start()
-        bot_message = ""
-        buffer = ""
-        first_sentence_done = False
-        sentence_endings = ['?', '.', '!']
-        for token in handler.get_stream():
-            if not first_sentence_done:
-                buffer += token
-                # Check if we've reached the end of the first sentence
-                if any(p in buffer for p in sentence_endings):
-                    # Apply the strip function to the buffer
-                    cleaned = strip_leading_question_sentence(buffer)
-                    first_sentence_done = True
-                    if cleaned:
-                        yield cleaned
-            else:
-                yield token
-        thread.join()
-
-    return Response(stream_with_context(generate()), mimetype='text/plain')
-
 @app.route('/session-chat-stream', methods=['POST'])
 def session_chat_stream():
     data = request.get_json()
@@ -324,7 +169,7 @@ def session_chat_stream():
     )
     # Streaming LLM
     handler = QueueStreamHandler()
-    streaming_llm = ChatOpenAI(openai_api_key=openai_api_key, model="gpt-4", streaming=True, callbacks=[handler])
+    streaming_llm = ChatOpenAI(openai_api_key=openai_api_key, model="gpt-4o-mini", streaming=True, callbacks=[handler])
     session_chain = ConversationalRetrievalChain.from_llm(
         llm=streaming_llm,
         retriever=retriever,
@@ -349,6 +194,8 @@ def session_chat_stream():
         history.add_ai_message(bot_message)
 
     return Response(stream_with_context(generate()), mimetype='text/plain')
+
+set_debug(True)
 
 if __name__ == "__main__":
     app.run(debug=True) 

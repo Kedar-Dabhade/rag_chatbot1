@@ -46,28 +46,28 @@ function ChatWindow() {
     setLoading(true);
     try {
       const res = await fetch("http://localhost:5000/session-chat-stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ message: input })
-      });
+      body: JSON.stringify({ message: input })
+    });
       if (!res.body) throw new Error("No response body");
       const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
+    const decoder = new TextDecoder();
+    let done = false;
       let botMessage = "";
-      let idx = messages.length + 1; // index of the bot message
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        if (value) {
-          const chunk = decoder.decode(value);
-          botMessage += chunk;
-          setMessages(msgs => {
-            const newMsgs = [...msgs];
-            newMsgs[idx] = { sender: "bot", text: botMessage };
-            return newMsgs;
-          });
+    let idx = messages.length + 1; // index of the bot message
+    while (!done) {
+      const { value, done: doneReading } = await reader.read();
+      done = doneReading;
+      if (value) {
+        const chunk = decoder.decode(value);
+        botMessage += chunk;
+        setMessages(msgs => {
+          const newMsgs = [...msgs];
+          newMsgs[idx] = { sender: "bot", text: botMessage };
+          return newMsgs;
+        });
         }
       }
     } catch (e) {
