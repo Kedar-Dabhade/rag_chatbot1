@@ -14,6 +14,7 @@ import threading
 import tiktoken
 import uuid
 from langchain.globals import set_debug
+import json
 
 # Load environment variables
 load_dotenv()
@@ -194,6 +195,32 @@ def session_chat_stream():
         history.add_ai_message(bot_message)
 
     return Response(stream_with_context(generate()), mimetype='text/plain')
+
+@app.route('/feedback', methods=['POST'])
+def feedback():
+    data = request.get_json()
+    user_message = data.get('user_message')
+    bot_message = data.get('bot_message')
+    feedback_type = data.get('feedback')  # 'like' or 'dislike'
+    session_id = session.get('session_id')
+    if not all([session_id, user_message, bot_message, feedback_type]):
+        return jsonify({'error': 'Missing required fields.'}), 400
+    # Directory structure
+    base_dir = os.path.join('feedback', 'liked_responses' if feedback_type == 'like' else 'disliked_responses')
+    os.makedirs(base_dir, exist_ok=True)
+    session_file = os.path.join(base_dir, f"{session_id}.json")
+    # Prepare entry
+    entry = {"user_message": user_message, "bot_message": bot_message}
+    # Append to file
+    if os.path.exists(session_file):
+        with open(session_file, 'r', encoding='utf-8') as f:
+            data_list = json.load(f)
+    else:
+        data_list = []
+    data_list.append(entry)
+    with open(session_file, 'w', encoding='utf-8') as f:
+        json.dump(data_list, f, ensure_ascii=False, indent=2)
+    return jsonify({'status': 'success'})
 
 set_debug(True)
 

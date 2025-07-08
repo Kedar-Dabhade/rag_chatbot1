@@ -87,8 +87,18 @@ function ChatWindow() {
           // Show typing indicator for the last bot message if loading and no text yet
           const isLast = idx === messages.length - 1;
           const showTyping = loading && msg.sender === "bot" && !msg.text && isLast;
+          // Find the most recent user message before this bot message
+          let userMessage = null;
+          if (msg.sender === "bot") {
+            for (let i = idx - 1; i >= 0; i--) {
+              if (messages[i].sender === "user") {
+                userMessage = messages[i].text;
+                break;
+              }
+            }
+          }
           return (
-            <MessageBubble key={idx} sender={msg.sender} text={msg.text} typing={showTyping} />
+            <MessageBubble key={idx} sender={msg.sender} text={msg.text} typing={showTyping} userMessage={userMessage} />
           );
         })}
         <div ref={messagesEndRef} />
